@@ -47,3 +47,15 @@ venv/
 .env/
 dist/
 build/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
+# Terraform lock (optional)
+# .terraform.lock.hcl
+
+# Windows
+Thumbs.db
