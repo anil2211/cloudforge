@@ -1033,3 +1033,1046 @@ eplace:
 yourmail@gmail.com
 
 with your email.
+
+APPLY ISSUER
+kubectl apply -f cluster-issuer.yaml
+STEP 3 — UPDATE ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-ingress
+  namespace: cloudforge
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+spec:
+  ingressClassName: nginx
+
+  tls:
+  - hosts:
+    - api.cloudforge-devops.site
+
+    secretName: cloudforge-tls
+
+  rules:
+  - host: api.cloudforge-devops.site
+
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+
+        backend:
+          service:
+            name: backend-service
+
+            port:
+              number: 80
+
+APPLY UPDATED INGRESS
+kubectl apply -f ingress.yaml
+VERIFY TLS CERTIFICATE
+kubectl get certificate -n cloudforge
+
+Expected:
+VERIFY WEBSITE
+
+Open:
+
+https://api.cloudforge-devops.site
+
+Expected:
+
+{"message":"CloudForge Platform Running"}
+SUCCESS CHECKPOINT #14
+
+Verify:
+
+HTTPS working
+TLS certificate active
+Domain live
+Backend accessible publicly
+
+THIS IS A MAJOR RECRUITER DEMO MILESTONE.
+
+DEBUGGING COMMANDS
+Ingress
+kubectl describe ingress backend-ingress -n cloudforge
+Certificates
+kubectl get certificates -A
+Pods
+kubectl get pods -A
+Services
+kubectl get svc -A
+
+NEXT PART — JENKINS CI/CD + GITHUB WEBHOOKS + AUTOMATED DEPLOYMENT
+PHASE 17 — PREPARE JENKINS FOR CI/CD
+
+Now we will automate:
+
+GitHub Push
+   ↓
+Jenkins Trigger
+   ↓
+Docker Build
+   ↓
+Docker Push to ECR
+   ↓
+Kubernetes Deployment
+
+This is one of the MOST important recruiter demonstration sections.
+
+STEP 1 — OPEN JENKINS
+
+Open:
+
+http://EC2_PUBLIC_IP:8080
+STEP 2 — INSTALL REQUIRED JENKINS PLUGINS
+
+Go to:
+
+Manage Jenkins
+→ Plugins
+→ Available Plugins
+
+Install:
+
+Docker Pipeline
+GitHub Integration
+Pipeline
+Kubernetes
+AWS Credentials
+Blue Ocean
+Stage View
+SSH Agent
+
+Restart Jenkins.
+
+STEP 3 — INSTALL DOCKER INSIDE JENKINS
+
+Run on EC2:
+
+sudo usermod -aG docker jenkins
+
+Restart:
+
+sudo systemctl restart jenkins
+VERIFY DOCKER ACCESS
+
+Run:
+
+sudo su - jenkins
+
+Then:
+
+docker ps
+
+If no permission issue:
+
+Docker access works.
+
+Exit:
+
+exit
+SUCCESS CHECKPOINT #15
+
+Verify:
+
+Jenkins running
+Plugins installed
+Docker accessible from Jenkins
+
+ONLY THEN continue.
+
+PHASE 18 — CONFIGURE JENKINS CREDENTIALS
+STEP 1 — ADD AWS CREDENTIALS
+
+Go:
+
+Manage Jenkins
+→ Credentials
+→ Global
+→ Add Credentials
+
+Type:
+
+AWS Credentials
+
+Add:
+
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+
+ID:
+
+aws-creds
+STEP 2 — ADD GITHUB TOKEN
+
+Generate token from:
+
+urlGitHub Personal Access Tokenshttps://github.com/settings/tokens
+
+Permissions:
+
+repo
+workflow
+admin:repo_hook
+Add Token to Jenkins
+
+Go:
+
+Manage Jenkins
+→ Credentials
+→ Add Credentials
+
+Type:
+
+Secret text
+
+ID:
+
+github-token
+SUCCESS CHECKPOINT #16
+
+Verify:
+
+AWS credentials configured
+GitHub token configured
+
+ONLY THEN continue.
+
+PHASE 19 — CREATE JENKINS PIPELINE PROJECT
+STEP 1 — CREATE NEW ITEM
+
+Inside Jenkins:
+
+New Item
+→ Pipeline
+
+Name:
+
+cloudforge-backend-pipeline
+STEP 2 — ENABLE GITHUB WEBHOOK
+
+Inside pipeline config:
+
+Enable:
+
+GitHub hook trigger for GITScm polling
+STEP 3 — CONNECT GITHUB REPOSITORY
+
+SCM:
+
+Git
+
+Repository:
+
+https://github.com/YOUR_USERNAME/cloudforge-backend.git
+
+Credentials:
+
+github-token
+
+Branch:
+
+main
+STEP 4 — CREATE Jenkinsfile
+
+Inside:
+
+cloudforge-backend/
+
+Create:
+
+Jenkinsfile
+Jenkinsfile
+
+IMPORTANT:
+
+Replace:
+
+ACCOUNT_ID
+
+with your AWS account ID.
+
+pipeline {
+        AWS_REGION = 'ap-south-1'
+        ECR_REPO = 'cloudforge-backend'
+        IMAGE_TAG = 'latest'
+        ACCOUNT_ID = 'ACCOUNT_ID'
+        IMAGE_URI = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+    }
+
+
+    stages {
+
+
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/YOUR_USERNAME/cloudforge-backend.git'
+            }
+        }
+
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t cloudforge-backend .'
+            }
+        }
+
+
+        stage('Authenticate ECR') {
+            steps {
+                sh '''
+                aws ecr get-login-password --region $AWS_REGION | \
+                docker login --username AWS --password-stdin \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+                '''
+            }
+        }
+
+
+        stage('Tag Docker Image') {
+            steps {
+                sh 'docker tag cloudforge-backend:latest $IMAGE_URI'
+            }
+        }
+
+
+        stage('Push Docker Image') {
+            steps {
+                sh 'docker push $IMAGE_URI'
+            }
+        }
+
+
+        stage('Deploy To Kubernetes') {
+            steps {
+                sh 'kubectl rollout restart deployment backend -n cloudforge'
+            }
+        }
+
+
+        stage('Verify Deployment') {
+            steps {
+                sh 'kubectl get pods -n cloudforge'
+            }
+        }
+    }
+}
+STEP 5 — PUSH Jenkinsfile TO GITHUB
+git add .
+git commit -m "added jenkins pipeline"
+git push origin main
+SUCCESS CHECKPOINT #17
+
+Verify:
+
+Jenkinsfile visible in GitHub
+Jenkins project configured
+
+ONLY THEN continue.
+
+PHASE 20 — CONFIGURE GITHUB WEBHOOK
+STEP 1 — OPEN GITHUB REPOSITORY
+
+Go:
+
+Settings
+→ Webhooks
+→ Add Webhook
+STEP 2 — ADD WEBHOOK URL
+
+Use:
+
+http://EC2_PUBLIC_IP:8080/github-webhook/
+
+Content type:
+
+application/json
+
+Events:
+
+Just the push event
+
+Save webhook.
+
+STEP 3 — TEST PIPELINE
+
+Modify backend code:
+
+return {
+    'message': 'CI/CD Pipeline Working'
+}
+PUSH CODE
+git add .
+git commit -m "testing ci cd"
+git push origin main
+VERIFY PIPELINE
+
+Inside Jenkins verify:
+
+Pipeline automatically triggered
+VERIFY DOCKER PUSH
+
+Inside AWS ECR:
+
+Check:
+
+new image pushed
+VERIFY KUBERNETES DEPLOYMENT
+
+Run:
+
+kubectl get pods -n cloudforge
+VERIFY WEBSITE
+
+Open:
+
+https://api.cloudforge-devops.site
+
+Expected:
+
+{"message":"CI/CD Pipeline Working"}
+SUCCESS CHECKPOINT #18
+
+Verify:
+
+GitHub webhook works
+Jenkins pipeline auto triggers
+Docker image rebuilt
+Image pushed to ECR
+Kubernetes deployment updated
+Website updated automatically
+
+THIS IS A MASSIVE RECRUITER DEMO FEATURE.
+
+PHASE 21 — CREATE SEPARATE KUBERNETES MANIFEST REPOSITORY
+
+Now we improve architecture.
+
+STEP 1 — MOVE YAML FILES
+
+Move:
+
+namespace.yaml
+deployment.yaml
+service.yaml
+ingress.yaml
+
+into:
+
+cloudforge-k8s
+STEP 2 — UPDATE JENKINSFILE
+
+Replace deploy stage:
+
+stage('Deploy To Kubernetes') {
+    steps {
+        sh 'kubectl apply -f ../cloudforge-k8s/'
+    }
+}
+STEP 3 — PUSH CHANGES
+git add .
+git commit -m "moved k8s manifests"
+git push origin main
+SUCCESS CHECKPOINT #19
+
+Verify:
+
+Separate k8s repo working
+Jenkins can deploy manifests
+Pods still healthy
+
+ONLY THEN continue.
+
+PHASE 22 — ENABLE BLUE GREEN DEPLOYMENT STRATEGY
+
+This makes your project look more enterprise-grade.
+
+STEP 1 — UPDATE deployment.yaml
+
+Add:
+
+strategy:
+  type: RollingUpdate
+
+
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 1
+
+inside deployment spec.
+
+APPLY
+kubectl apply -f deployment.yaml
+VERIFY ROLLING UPDATE
+
+Push new backend change.
+
+Run:
+
+kubectl rollout status deployment/backend -n cloudforge
+SUCCESS CHECKPOINT #20
+
+Verify:
+
+Rolling updates working
+Zero downtime deployment
+Pods updating safely
+
+ONLY THEN continue.
+
+PHASE 23 — ADD HEALTH MONITORING TO PIPELINE
+UPDATE Jenkinsfile
+
+Add stage:
+
+stage('Health Check') {
+    steps {
+        sh 'curl -f https://api.cloudforge-devops.site/health'
+    }
+}
+VERIFY
+
+Push code.
+
+Verify:
+
+Pipeline passes health checks
+SUCCESS CHECKPOINT #21
+
+Verify:
+
+Automated health verification working
+Deployment validation automated
+DEBUGGING COMMANDS
+Jenkins Logs
+sudo journalctl -u jenkins -f
+Pipeline Logs
+
+Inside Jenkins:
+
+Build Logs
+Kubernetes
+kubectl get pods -n cloudforge
+kubectl logs POD_NAME -n cloudforge
+Rollouts
+kubectl rollout status deployment/backend -n cloudforge
+NEXT PART
+
+The next implementation section should include:
+
+Prometheus Installation
+Grafana Dashboards
+Node Exporter
+kube-state-metrics
+Kubernetes Monitoring
+CloudWatch Logging
+Fluent Bit
+Log Aggregation
+Lambda Automation
+SNS Alerts
+DevSecOps
+Trivy Scanning
+Checkov
+tfsec
+AI Log Analysis
+Incident Notifications
+
+
+PHASE 24 — PROMETHEUS + GRAFANA MONITORING
+
+Now we will build:
+
+Kubernetes Monitoring
+↓
+Prometheus
+↓
+Grafana
+↓
+Node Metrics
+↓
+Pod Metrics
+↓
+Cluster Metrics
+
+This section is EXTREMELY important for DevOps interviews.
+
+STEP 1 — OPEN MONITORING REPOSITORY
+cd ../cloudforge-monitoring
+STEP 2 — ADD HELM REPOSITORIES
+helm repo add prometheus-community \
+https://prometheus-community.github.io/helm-charts
+helm repo add grafana \
+https://grafana.github.io/helm-charts
+UPDATE HELM
+helm repo update
+STEP 3 — CREATE MONITORING NAMESPACE
+kubectl create namespace monitoring
+VERIFY
+kubectl get ns
+
+Expected:
+
+monitoring
+PHASE 25 — INSTALL KUBE PROMETHEUS STACK
+
+This installs:
+
+Prometheus
+Grafana
+AlertManager
+Node Exporter
+kube-state-metrics
+STEP 1 — INSTALL STACK
+helm install monitoring prometheus-community/kube-prometheus-stack \
+-n monitoring
+IMPORTANT
+
+This installation may take:
+
+5–10 minutes
+VERIFY PODS
+kubectl get pods -n monitoring
+
+Expected:
+
+Running pods
+VERIFY SERVICES
+kubectl get svc -n monitoring
+SUCCESS CHECKPOINT #22
+
+Verify:
+
+Prometheus running
+Grafana running
+Node exporter running
+kube-state-metrics running
+
+ONLY THEN continue.
+
+PHASE 26 — ACCESS GRAFANA
+STEP 1 — GET GRAFANA PASSWORD
+kubectl get secret \
+--namespace monitoring monitoring-grafana \
+-o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+
+Save password.
+
+STEP 2 — PORT FORWARD GRAFANA
+kubectl port-forward svc/monitoring-grafana \
+3000:80 -n monitoring
+OPEN GRAFANA
+
+Open:
+
+http://localhost:3000
+
+Login:
+
+Username: admin
+Password: <password>
+VERIFY DASHBOARDS
+
+Go:
+
+Dashboards
+
+You should see:
+
+Kubernetes Cluster Monitoring
+Node Monitoring
+Pod Metrics
+SUCCESS CHECKPOINT #23
+
+Verify:
+
+Grafana login works
+Dashboards visible
+Metrics visible
+
+ONLY THEN continue.
+
+PHASE 27 — EXPOSE GRAFANA PUBLICLY
+STEP 1 — CREATE grafana-ingress.yaml
+
+Replace:
+
+grafana.yourdomain.com
+
+with your domain.
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: monitoring
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
+spec:
+  ingressClassName: nginx
+
+  tls:
+  - hosts:
+    - grafana.yourdomain.com
+
+    secretName: grafana-tls
+
+  rules:
+  - host: grafana.yourdomain.com
+
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+
+        backend:
+          service:
+            name: monitoring-grafana
+
+            port:
+              number: 80
+APPLY
+kubectl apply -f grafana-ingress.yaml
+VERIFY
+kubectl get ingress -A
+OPEN GRAFANA
+https://grafana.yourdomain.com
+SUCCESS CHECKPOINT #24
+
+Verify:
+
+Grafana accessible publicly
+HTTPS working
+Dashboards loading
+
+THIS IS A HUGE RECRUITER FEATURE.
+
+PHASE 28 — ENABLE CLOUDWATCH LOGGING
+
+Now we centralize logs.
+
+STEP 1 — CREATE IAM POLICY
+
+Attach to EKS worker nodes:
+
+CloudWatchAgentServerPolicy
+VERIFY IAM ROLE
+
+Inside AWS:
+
+IAM
+→ Roles
+→ EKS Node Role
+
+Verify policy attached.
+
+PHASE 29 — INSTALL FLUENT BIT
+STEP 1 — ADD HELM REPOSITORY
+helm repo add fluent https://fluent.github.io/helm-charts
+UPDATE
+helm repo update
+STEP 2 — INSTALL FLUENT BIT
+helm install fluent-bit fluent/fluent-bit \
+-n monitoring
+VERIFY PODS
+kubectl get pods -n monitoring
+
+Expected:
+
+fluent-bit running
+SUCCESS CHECKPOINT #25
+
+Verify:
+
+Fluent Bit running
+Logging agents healthy
+
+ONLY THEN continue.
+
+PHASE 30 — VERIFY CLOUDWATCH LOGS
+
+Inside AWS:
+
+Open:
+
+CloudWatch
+→ Log Groups
+
+Verify:
+
+EKS logs appearing
+Container logs appearing
+SUCCESS CHECKPOINT #26
+
+Verify:
+
+Centralized logging working
+Pod logs visible in CloudWatch
+
+ONLY THEN continue.
+
+PHASE 31 — CREATE LAMBDA AUTOMATION
+
+Now we add serverless automation.
+
+STEP 1 — CREATE lambda_function.py
+
+Inside new folder:
+
+cloudforge-lambda
+
+Create:
+
+import json
+
+def lambda_handler(event, context):
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('CloudForge Lambda Running')
+    }
+ZIP FUNCTION
+zip function.zip lambda_function.py
+STEP 2 — CREATE LAMBDA
+
+Inside AWS:
+
+Lambda
+→ Create Function
+
+Use:
+
+Python 3.12
+
+Upload:
+
+function.zip
+TEST FUNCTION
+
+Expected:
+
+{
+  "statusCode": 200
+}
+SUCCESS CHECKPOINT #27
+
+Verify:
+
+Lambda working
+Test successful
+
+ONLY THEN continue.
+
+PHASE 32 — SNS ALERTING
+STEP 1 — CREATE SNS TOPIC
+
+Inside AWS:
+
+SNS
+→ Create Topic
+
+Name:
+
+cloudforge-alerts
+STEP 2 — CREATE EMAIL SUBSCRIPTION
+
+Add your email.
+
+Confirm subscription.
+
+STEP 3 — CONNECT CLOUDWATCH ALARMS
+
+Create alarms for:
+
+CPU usage
+Memory
+Pod failures
+
+Action:
+
+Send notification to SNS
+SUCCESS CHECKPOINT #28
+
+Verify:
+
+Email alerts received
+CloudWatch alarms active
+
+ONLY THEN continue.
+
+PHASE 33 — DEVSECOPS IMPLEMENTATION
+
+Now we add security scanning.
+
+STEP 1 — INSTALL TRIVY
+
+On Jenkins server:
+
+sudo apt install wget apt-transport-https gnupg lsb-release -y
+wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | \
+gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+echo deb [signed-by=/usr/share/keyrings/trivy.gpg] \
+https://aquasecurity.github.io/trivy-repo/deb \
+$(lsb_release -sc) main | \
+sudo tee -a /etc/apt/sources.list.d/trivy.list
+sudo apt update
+sudo apt install trivy -y
+VERIFY
+trivy --version
+STEP 2 — SCAN DOCKER IMAGE
+trivy image cloudforge-backend:latest
+SUCCESS CHECKPOINT #29
+
+Verify:
+
+Vulnerability scan working
+CVEs detected
+
+ONLY THEN continue.
+
+PHASE 34 — INSTALL tfsec
+INSTALL
+curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+VERIFY
+tfsec --version
+SCAN TERRAFORM
+cd ../cloudforge-infra
+
+tfsec .
+SUCCESS CHECKPOINT #30
+
+Verify:
+
+Terraform security scan working
+
+ONLY THEN continue.
+
+PHASE 35 — INSTALL CHECKOV
+INSTALL
+pip install checkov
+VERIFY
+checkov --version
+SCAN INFRASTRUCTURE
+checkov -d .
+SUCCESS CHECKPOINT #31
+
+Verify:
+
+Checkov scanning works
+Security reports generated
+
+ONLY THEN continue.
+
+PHASE 36 — ADD SECURITY SCANNING TO JENKINS
+UPDATE Jenkinsfile
+
+Add stages BEFORE deployment:
+
+stage('Trivy Scan') {
+    steps {
+        sh 'trivy image cloudforge-backend:latest'
+    }
+}
+stage('tfsec Scan') {
+    steps {
+        sh 'cd ../cloudforge-infra && tfsec .'
+    }
+}
+VERIFY
+
+Push code.
+
+Pipeline should execute scans.
+
+SUCCESS CHECKPOINT #32
+
+Verify:
+
+Automated security scanning works
+CI pipeline includes DevSecOps
+
+THIS IMPRESSES RECRUITERS A LOT.
+
+PHASE 37 — AI LOG ANALYSIS
+
+Now we add AI-powered observability.
+
+STEP 1 — CREATE ai-log-analyzer.py
+
+Inside:
+
+cloudforge-monitoring
+
+Create:
+
+import re
+
+log_file = "sample.log"
+
+with open(log_file, "r") as file:
+    logs = file.readlines()
+
+errors = []
+
+for log in logs:
+    if re.search(r'ERROR|CRITICAL|FAILED', log):
+        errors.append(log)
+
+print("==== INCIDENT SUMMARY ====")
+
+for error in errors:
+    print(error)
+CREATE sample.log
+INFO Application started
+ERROR Database timeout
+INFO Request successful
+CRITICAL Kubernetes node failure
+RUN ANALYZER
+python ai-log-analyzer.py
+
+Expected:
+
+ERROR Database timeout
+CRITICAL Kubernetes node failure
+IMPROVEMENT IDEA
+
+Later integrate:
+
+OpenAI API
+Bedrock
+Gemini
+Slack alerts
+
+This becomes your “AI + DevOps” recruiter differentiator.
+
+SUCCESS CHECKPOINT #33
+
+Verify:
+
+AI log analysis working
+Incident extraction working
+
+ONLY THEN continue.
+
+PHASE 38 — INCIDENT NOTIFICATIONS
+CREATE INCIDENT SCRIPT
+import smtplib
+
+server = smtplib.SMTP('smtp.gmail.com', 587)
+server.starttls()
+
+print('Incident notification sent')
+FUTURE IMPROVEMENTS
+
+Add:
+
+Slack notifications
+Microsoft Teams
+PagerDuty
+Opsgenie

@@ -47,7 +47,7 @@ pipeline {
 
         stage('Deploy To Kubernetes') {
             steps {
-                sh 'kubectl rollout restart deployment backend -n cloudforge'
+        sh 'kubectl apply -f ../cloudforge-k8s/'
             }
         }
 
