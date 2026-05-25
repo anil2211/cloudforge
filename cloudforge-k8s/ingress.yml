@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-ingress
+  namespace: cloudforge
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+spec:
+  ingressClassName: nginx
+
+  tls:
+  - hosts:
+    - api.cloudforge-devops.site
+
+    secretName: cloudforge-tls
+
+  rules:
+  - host: api.cloudforge-devops.site
+
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+
+        backend:
+          service:
+            name: backend-service
+
+            port:
+              number: 80

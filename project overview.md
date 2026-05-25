@@ -412,3 +412,624 @@ Terraform successful
 VPC visible in AWS
 Subnet visible
 ONLY THEN continue.
+
+
+COMPLETE AWS NETWORKING + EKS + ECR
+PHASE 7 — COMPLETE AWS NETWORKING
+
+Now we will build:
+
+Internet Gateway
+Route Tables
+Public Routing
+NAT Gateway
+Private Subnets
+Security Groups
+EKS-ready networking
+IMPORTANT
+
+EKS requires:
+
+Minimum 2 subnets
+Different availability zones
+Proper route tables
+Internet connectivity
+STEP 1 — UPDATE main.tf
+
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "cloudforge-vpc"
+  }
+}
+
+# PUBLIC SUBNET 1
+resource "aws_subnet" "public_1" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "ap-south-1a"
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "public-subnet-1"
+    "kubernetes.io/role/elb" = "1"
+  }
+}
+
+}
+
+STEP 2 — APPLY TERRAFORM
+
+terraform fmt
+terraform validate
+terraform plan
+terraform apply
+
+VERIFY NETWORKING
+
+Inside AWS Console verify:
+
+VPC
+
+Check:
+
+VPC created
+DNS enabled
+Subnets
+
+Check:
+
+2 public subnets
+2 private subnets
+Different AZs
+Internet Gateway
+
+Check:
+
+IGW attached to VPC
+Route Tables
+
+Check:
+
+Public route table exists
+0.0.0.0/0 route exists
+SUCCESS CHECKPOINT #5
+
+Verify:
+
+Internet Gateway working
+Public subnets created
+Private subnets created
+Route table attached
+
+ONLY THEN continue.
+
+PHASE 8 — CREATE SECURITY GROUPS
+STEP 1 — ADD SECURITY GROUPS
+
+Append this to main.tf
+resource "aws_security_group" "eks_nodes" {
+  name        = "eks-node-group"
+  description = "Security group for EKS nodes"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "eks-node-sg"
+  }
+}
+
+APPLY TERRAFORM
+
+
+terraform apply
+
+VERIFY SECURITY GROUP
+
+Inside AWS:
+
+Check:
+
+Security group created
+Inbound rules active
+SUCCESS CHECKPOINT #6
+
+Verify:
+
+Security group visible
+Attached to correct VPC
+
+PHASE 9 — CREATE EKS CLUSTER
+IMPORTANT
+
+This phase may take:
+STEP 1 — CREATE eks.tf
+
+Create file:eks.tf
+module "eks" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "20.8.4"
+
+  cluster_name    = "cloudforge-eks"
+  cluster_version = "1.31"
+
+  subnet_ids = [
+    aws_subnet.private_1.id,
+    aws_subnet.private_2.id
+  ]
+
+  vpc_id = aws_vpc.main.id
+
+  eks_managed_node_groups = {
+    default = {
+      desired_size = 2
+      min_size     = 1
+      max_size     = 3
+
+      instance_types = ["t3.medium"]
+
+      capacity_type = "ON_DEMAND"
+    }
+  }
+}
+
+STEP 2 — INITIALIZE MODULES
+terraform init
+
+STEP 3 — PLAN
+
+terraform plan
+
+STEP 4 — APPLY
+
+terraform apply
+
+VERIFY EKS CLUSTER
+
+Inside AWS:
+
+Open:
+
+EKS
+
+Check:
+
+cluster active
+node group active
+
+STEP 5 — CONFIGURE kubectl
+
+aws eks update-kubeconfig --region ap-south-1 --name cloudforge-eks
+
+VERIFY CLUSTER ACCESS
+
+kubectl get nodes
+Ready nodes
+
+DEBUGGING COMMANDS
+Cluster Info
+kubectl cluster-info
+Nodes
+kubectl get nodes
+Pods
+kubectl get pods -A
+
+SUCCESS CHECKPOINT #7
+
+Verify:
+
+EKS cluster active
+Worker nodes ready
+kubectl connected
+
+ONLY THEN continue.
+
+PHASE 10 — CREATE ECR REPOSITORY
+STEP 1 — CREATE REPOSITORY
+
+Run:
+
+aws ecr create-repository --repository-name cloudforge-backend
+
+VERIFY ECR
+Inside AWS:
+Open:
+Amazon ECR
+Check:
+repository visible
+
+STEP 2 — LOGIN TO ECR
+
+Replace:
+
+ACCOUNT_ID
+
+with your AWS account ID.
+
+Run:aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com
+
+STEP 3 — BUILD IMAGE
+
+Go to backend repo:
+
+cd ../cloudforge-backend
+
+Build:
+
+docker build -t cloudforge-backend .
+
+STEP 4 — TAG IMAGE
+
+docker tag cloudforge-backend:latest ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/cloudforge-backend:latest
+
+STEP 5 — PUSH IMAGE
+docker push ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/cloudforge-backend:latest
+VERIFY IMAGE
+
+Inside AWS:
+Open:
+
+ECR Repository
+
+Verify:
+
+image visible
+SUCCESS CHECKPOINT #8
+
+Verify:
+
+Docker image pushed
+ECR repository working
+Image visible in AWS
+
+ONLY THEN continue.
+
+NEXT PART — KUBERNETES DEPLOYMENT + INGRESS + DOMAIN + HTTPS
+PHASE 11 — KUBERNETES APPLICATION DEPLOYMENT
+
+Now we will:
+
+Deploy backend to EKS
+Create Kubernetes Deployment
+Create Service
+Verify Pods
+Verify Networking
+Expose application internally
+
+IMPORTANT
+
+Before continuing verify:
+
+kubectl get nodes
+
+You MUST see:
+
+Ready nodes
+STEP 1 — OPEN KUBERNETES REPOSITORY
+cd ../cloudforge-k8s
+
+STEP 2 — CREATE FILES 
+
+Create:
+
+namespace.yaml
+deployment.yaml
+service.yaml
+STEP 3 — CREATE namespace.yaml
+APPLY NAMESPACE
+kubectl apply -f namespace.yaml
+VERIFY NAMESPACE
+kubectl get namespaces
+
+Expected:cloudforge
+
+
+STEP 4 — CREATE deployment.yaml
+
+IMPORTANT:
+
+Replace:
+
+ACCOUNT_ID
+
+with your AWS account ID.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: cloudforge
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: backend
+
+  template:
+    metadata:
+      labels:
+        app: backend
+
+    spec:
+      containers:
+      - name: backend
+
+        image: ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/cloudforge-backend:latest
+
+        ports:
+        - containerPort: 8000
+
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+          periodSeconds: 5
+
+STEP 5 — APPLY DEPLOYMENT
+kubectl apply -f deployment.yaml
+VERIFY DEPLOYMENT
+kubectl get deployments -n cloudforge
+VERIFY PODS
+kubectl get pods -n cloudforge
+Expected:
+
+DEBUGGING COMMANDS
+Describe Pod
+kubectl describe pod POD_NAME -n cloudforge
+Logs
+
+SUCCESS CHECKPOINT #9
+
+Verify:
+
+Deployment created
+Pods running
+No CrashLoopBackOff
+Health checks passing
+
+ONLY THEN continue.
+PHASE 12 — CREATE KUBERNETES SERVICE
+STEP 1 — CREATE service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: cloudforge
+
+spec:
+  selector:
+    app: backend
+
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+
+  type: ClusterIP
+
+APPLY SERVICE
+kubectl apply -f service.yaml
+VERIFY SERVICE
+kubectl get svc -n cloudforge
+
+Expected:
+
+TEST INTERNAL CONNECTIVITY
+
+Run temporary pod:
+
+kubectl run test-pod \
+--image=busybox \
+--restart=Never \
+--rm -it -n cloudforge -- sh
+
+Inside pod:
+
+wget -qO- http://backend-service
+
+Expected:
+
+{"message":"CloudForge Platform Running"}
+
+Exit:
+
+SUCCESS CHECKPOINT #10
+
+Verify:
+
+Service created
+Internal networking works
+Backend reachable
+
+ONLY THEN continue
+
+PHASE 13 — INSTALL NGINX INGRESS CONTROLLER
+STEP 1 — ADD HELM REPOSITORY
+helm repo add ingress-nginx \
+https://kubernetes.github.io/ingress-nginx
+
+
+STEP 2 — UPDATE HELM
+helm repo update
+
+STEP 3 — INSTALL INGRESS CONTROLLER
+helm install ingress-nginx \
+ingress-nginx/ingress-nginx \
+--namespace ingress-nginx \
+--create-namespace
+VERIFY INGRESS CONTROLLER
+kubectl get pods -n ingress-nginx
+
+Expected:Running ingress controller pods
+
+STEP 4 — VERIFY LOAD BALANCER
+kubectl get svc -n ingress-nginx
+
+Expected:
+
+EXTERNAL-IP assigned
+
+IMPORTANT:
+
+This may take:
+
+5–10 minutes
+SUCCESS CHECKPOINT #11
+
+Verify:
+
+NGINX ingress running
+AWS ELB created
+External IP assigned
+
+ONLY THEN continue.
+
+PHASE 14 — CREATE INGRESS RESOURCE
+STEP 1 — CREATE ingress.yaml
+
+Replace:
+
+api.yourdomain.com
+
+with your real domain.
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-ingress
+  namespace: cloudforge
+
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+spec:
+  ingressClassName: nginx
+
+  rules:
+  - host: api.yourdomain.com
+
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+
+        backend:
+          service:
+            name: backend-service
+
+            port:
+              number: 80
+
+
+APPLY INGRESS
+kubectl apply -f ingress.yaml
+VERIFY INGRESS
+kubectl get ingress -n cloudforge
+
+Expected:
+SUCCESS CHECKPOINT #12
+
+Verify:
+
+Ingress created
+ELB attached
+DNS name visible
+ONLY THEN continue.
+
+PHASE 15 — DOMAIN CONFIGURATION
+STEP 1 — BUY DOMAIN
+
+Use:
+
+urlNamecheaphttps://www.namecheap.com
+urlGoDaddyhttps://www.godaddy.com
+
+Example:
+
+cloudforge-devops.site
+STEP 2 — OPEN ROUTE53
+Inside AWS:
+
+Route53
+Hosted Zones
+Create Hosted Zone
+
+Add your domain.
+
+STEP 3 — UPDATE NAMESERVERS
+
+Copy Route53 nameservers.
+
+Update them inside:
+
+Namecheap or
+GoDaddy
+
+STEP 4 — CREATE DNS RECORD
+
+Create:
+
+api.cloudforge-devops.site
+
+Type:
+
+CNAME
+
+Value:
+
+AWS Load Balancer DNS
+VERIFY DNS
+
+SUCCESS CHECKPOINT #13
+
+Verify:
+
+Domain resolves
+Route53 working
+ELB connected
+
+ONLY THEN continue.
+
+
+PHASE 16 — ENABLE HTTPS TLS
+STEP 1 — INSTALL CERT-MANAGER
+
+kubectl apply -f \
+https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+
+VERIFY CERT-MANAGER
+kubectl get pods -n cert-manager
+
+Expected:
+
+Running cert-manager pods
+STEP 2 — CREATE cluster-issuer.yaml
+
+eplace:
+
+yourmail@gmail.com
+
+with your email.
