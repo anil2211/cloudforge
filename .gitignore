@@ -1,0 +1,49 @@
+# =========================
+# Secrets / Keys
+# =========================
+
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# Environment variables (VERY IMPORTANT)
+.env
+.env.*
+!.env.example
+
+# Secret files
+secrets.json
+secret.json
+config/secrets.yml
+application-secret.yml
+
+# =========================
+# OS / Editor files
+# =========================
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# Logs
+# =========================
+
+*.log
+logs/
+
+# =========================
+# Node / Python / general
+# =========================
+
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.env/
+dist/
+build/
