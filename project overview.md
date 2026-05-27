@@ -2076,3 +2076,26 @@ Slack notifications
 Microsoft Teams
 PagerDuty
 Opsgenie
+
+GitHub
+   ↓
+Jenkins CI/CD
+   ↓
+Docker Build
+   ↓
+Amazon ECR
+   ↓
+EKS Kubernetes
+   ↓
+NGINX Ingress
+   ↓
+HTTPS Domain
+
+Monitoring Stack:
+Prometheus + Grafana + CloudWatch + Fluent Bit
+
+Security Stack:
+Trivy + tfsec + Checkov
+
+Automation:
+Lambda + SNS + AI Log Analyzer
