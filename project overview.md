@@ -2095,7 +2095,7 @@ Monitoring Stack:
 Prometheus + Grafana + CloudWatch + Fluent Bit
 
 Security Stack:
-Trivy + tfsec + Checkov
+Trivy + tfsec + git stausCheckov
 
 Automation:
 Lambda + SNS + AI Log Analyzer
